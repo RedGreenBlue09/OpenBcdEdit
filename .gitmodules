@@ -1,0 +1,3 @@
+[submodule "Library/OpenBcd"]
+	path = Library/OpenBcd
+	url = https://github.com/RedGreenBlue09/OpenBcd
