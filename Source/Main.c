@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 
 #include <OpenBcd.h>
@@ -77,8 +78,9 @@ int main(int argc, char** argv) {
 		mbstate_t MbState;
 		memset(&MbState, 0, sizeof(MbState));
 
-		char* sSource = argv[i];
-		size_t WideLength = mbsrtowcs(NULL, &sSource, 0, &MbState); // Without '\0'
+		const char* sSource = argv[i];
+		const char** restrict psSource = &sSource;
+		size_t WideLength = mbsrtowcs(NULL, psSource, 0, &MbState); // Without '\0'
 		if (WideLength == SIZE_MAX) {
 			fprintf(stderr, "Error: mbsrtowcs failed for argv[%i].\n", i);
 			break;
@@ -91,7 +93,7 @@ int main(int argc, char** argv) {
 		}
 
 		sSource = argv[i];
-		size_t WideLength2 = mbsrtowcs(wargv[i], &sSource, WideLength, &MbState);
+		size_t WideLength2 = mbsrtowcs(wargv[i], psSource, WideLength, &MbState);
 		assert(WideLength2 == WideLength);
 		wargv[i][WideLength] = L'\0';
 	}
@@ -113,7 +115,7 @@ int main(int argc, char** argv) {
 
 #endif
 
-errno_t wfopen_s_wrapper(FILE** pFile, const wchar_t* sFileName, const wchar_t* sMode) {
+int wfopen_s_wrapper(FILE** pFile, const wchar_t* sFileName, const wchar_t* sMode) {
 #ifdef _WIN32
 
 	return _wfopen_s(pFile, sFileName, sMode);
@@ -123,16 +125,17 @@ errno_t wfopen_s_wrapper(FILE** pFile, const wchar_t* sFileName, const wchar_t* 
 	mbstate_t MbState;
 	memset(&MbState, 0, sizeof(MbState));
 	const wchar_t* sSource;
+	const wchar_t** restrict psSource = &sSource;
 	
 	sSource = sFileName;
 	size_t MultiByteFileNameLength =
-		wcsrtombs(NULL, &sSource, 0, &MbState); // Without '\0'
+		wcsrtombs(NULL, psSource, 0, &MbState); // Without '\0'
 	if (MultiByteFileNameLength == SIZE_MAX)
 		return EILSEQ;
 
 	sSource = sMode;
 	size_t MultiByteModeLength =
-		wcsrtombs(NULL, &sSource, 0, &MbState); // Without '\0'
+		wcsrtombs(NULL, psSource, 0, &MbState); // Without '\0'
 	if (MultiByteModeLength == SIZE_MAX)
 		return EILSEQ;
 
@@ -150,18 +153,18 @@ errno_t wfopen_s_wrapper(FILE** pFile, const wchar_t* sFileName, const wchar_t* 
 
 	sSource = sFileName;
 	size_t MultiByteFileNameLength2 =
-		wcsrtombs(sMultiByteFileName, &sSource, MultiByteFileNameLength, &MbState);
+		wcsrtombs(sMultiByteFileName, psSource, MultiByteFileNameLength, &MbState);
 	assert(MultiByteFileNameLength2 == MultiByteFileNameLength);
 	sMultiByteFileName[MultiByteFileNameLength] = L'\0';
 
 	sSource = sMode;
 	size_t MultiByteModeLength2 =
-		wcsrtombs(sMultiByteMode, &sSource, MultiByteModeLength, &MbState);
+		wcsrtombs(sMultiByteMode, psSource, MultiByteModeLength, &MbState);
 	assert(MultiByteModeLength2 == MultiByteModeLength);
 	sMultiByteMode[MultiByteModeLength] = L'\0';
 
 	FILE* File = fopen(sMultiByteFileName, sMultiByteMode);
-	errno_t Result;
+	int Result;
 	if (File == NULL) {
 		Result = errno;
 	} else {
@@ -181,9 +184,9 @@ int real_wmain(int argc, wchar_t** argv) {
 		return -1;
 
 	FILE* StoreFile;
-	errno_t Error = wfopen_s_wrapper(&StoreFile, argv[1], L"rb+");
+	int Error = wfopen_s_wrapper(&StoreFile, argv[1], L"rb+");
 	if (Error != 0) {
-		fprintf(stderr, "Error opening the store file. errno: %i\n", (int)Error);
+		fprintf(stderr, "Error opening the store file. errno: %i\n", Error);
 		return -1;
 	}
 
@@ -295,8 +298,15 @@ int real_wmain(int argc, wchar_t** argv) {
 		if (Description.aBuffer == NULL)
 			Description = UnknownDescription;
 
-		wprintf(L"%.*ls\n", (int)Description.Length, Description.aBuffer);
-		for (size_t i = 0; i < Description.Length; ++i)
+		wchar_t aWideDescription[64];
+		size_t nWideDescription = Registry_ConvertString16ToWideStringAscii(
+			Description,
+			aWideDescription,
+			arrlen_literal(aWideDescription)
+		);
+
+		wprintf(L"%.*ls\n", (int)nWideDescription, aWideDescription);
+		for (size_t i = 0; i < nWideDescription; ++i)
 			putwchar(L'-');
 		putwchar(L'\n');
 		wprintf(L"%-24ls%.*ls\n", L"identifier", (int)nWideGuid, aWideGuid);
@@ -429,7 +439,7 @@ int real_wmain(int argc, wchar_t** argv) {
 
 					while (iOffset < n && ss[iOffset] != '\0') {
 						uint16_t* s = &ss[iOffset];
-						size_t Length = wcslen(s);
+						size_t Length = Registry_CountString16(s);
 
 						GuidString = (registry_string16){Length, Length, s};
 						ObjectFriendlyName =
