@@ -33,7 +33,7 @@ static uint8_t StoreSaveHandler(void* pBuffer, size_t nBuffer, void* Parameter) 
 	if (_chsize(_fileno(File), (long)nBuffer) != 0)
 		return 0;
 #elif _POSIX_VERSION
-	if (ftruncate(fileno(File), 1024) != 0)
+	if (ftruncate(fileno(File), (off_t)nBuffer) != 0)
 		return 0;
 #endif
 	rewind(File);
