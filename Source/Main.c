@@ -16,7 +16,7 @@
 #include <io.h>
 #include <Windows.h>
 
-#elif _POSIX_VERSION
+#elif __unix__
 
 #include <unistd.h>
 
@@ -32,7 +32,7 @@ static uint8_t StoreSaveHandler(void* pBuffer, size_t nBuffer, void* Parameter) 
 #if _WIN32
 	if (_chsize(_fileno(File), (long)nBuffer) != 0)
 		return 0;
-#elif _POSIX_VERSION
+#elif __unix__
 	if (ftruncate(fileno(File), (off_t)nBuffer) != 0)
 		return 0;
 #endif
@@ -54,7 +54,7 @@ int wmain(int argc, wchar_t** argv) {
 	// A workaround would be _configthreadlocale() then setlocale() but that's for the future.
 
 	char sLocale[arrlen_literal(".4294967295")];
-	sprintf_s(sLocale, arrlen_literal(sLocale), ".%"PRIu32, GetConsoleOutputCP());
+	snprintf(sLocale, arrlen_literal(sLocale), ".%"PRIu32, GetConsoleOutputCP());
 	if (setlocale(LC_ALL, sLocale) == NULL)
 		fprintf(stderr, "Warning: Unable to match CRT multi-byte code page with console.\n");
 
@@ -305,10 +305,13 @@ int real_wmain(int argc, wchar_t** argv) {
 			arrlen_literal(aWideDescription)
 		);
 
+		// Using non-wide printf should on theory works the same way and should
+		// save us some bytes but on Windows it's more buggy, so use wprintf
+		// whenever we want to print wide string.
 		wprintf(L"%.*ls\n", (int)nWideDescription, aWideDescription);
 		for (size_t i = 0; i < nWideDescription; ++i)
-			putwchar(L'-');
-		putwchar(L'\n');
+			putchar('-');
+		putchar('\n');
 		wprintf(L"%-24ls%.*ls\n", L"identifier", (int)nWideGuid, aWideGuid);
 
 		bcd_element_iterator iElement;
@@ -388,7 +391,7 @@ int real_wmain(int argc, wchar_t** argv) {
 			uint8_t bFirstLine = 1;
 			switch (ElementType) {
 				case Bcd_ElementType_Device:
-					wprintf(L"unimplemented\n");
+					printf("unimplemented\n");
 					break;
 
 				case Bcd_ElementType_String: {
@@ -457,7 +460,7 @@ int real_wmain(int argc, wchar_t** argv) {
 							nWideElementData
 						);
 						if (!bFirstLine) // Padding
-							wprintf(L"%-24ls", L"");
+							printf("%-24s", "");
 						wprintf(L"%.*ls\n", (int)nWritten, aWideElementData);
 
 						iOffset += Length + 1;
@@ -467,11 +470,11 @@ int real_wmain(int argc, wchar_t** argv) {
 				}
 
 				case Bcd_ElementType_Integer:
-					wprintf(L"%"PRIu64"\n", *(uint64_t*)aBuffer);
+					printf("%"PRIu64"\n", *(uint64_t*)aBuffer);
 					break;
 
 				case Bcd_ElementType_Boolean:
-					wprintf(L"%ls\n", (*(uint8_t*)aBuffer) ? L"Yes" : L"No");
+					printf("%s\n", (*(uint8_t*)aBuffer) ? "Yes" : "No");
 					break;
 
 				case Bcd_ElementType_IntegerList: {
@@ -480,8 +483,8 @@ int real_wmain(int argc, wchar_t** argv) {
 
 					for (size_t i = 0; i < IntegerCount; ++i) {
 						if (!bFirstLine) // Padding
-							wprintf(L"%-24ls", L"");
-						wprintf(L"0x%"PRIx64"\n", aInteger[i]);
+							printf("%-24s", "");
+						printf("0x%"PRIx64"\n", aInteger[i]);
 						bFirstLine = 0;
 					}
 					break;
@@ -494,7 +497,7 @@ int real_wmain(int argc, wchar_t** argv) {
 			CleanupElement:
 			Bcd_CloseElement(hElement);
 		}
-		putwchar(L'\n');
+		putchar('\n');
 
 		Bcd_CloseObject(hObject);
 		continue;
