@@ -30,16 +30,12 @@
 static uint8_t StoreSaveHandler(void* pBuffer, size_t nBuffer, void* Parameter) {
 	FILE* File = Parameter;
 #if _WIN32
-	if (_chsize(_fileno(File), (long)nBuffer) != 0)
-		return 0;
+	(void)_chsize(_fileno(File), (long)nBuffer);
 #elif __unix__
-	if (ftruncate(fileno(File), (off_t)nBuffer) != 0)
-		return 0;
+	ftruncate(fileno(File), (off_t)nBuffer);
 #endif
 	rewind(File);
-	if (fwrite(pBuffer, nBuffer, 1, File) < 1)
-		return 0;
-	return 1;
+	return (fwrite(pBuffer, nBuffer, 1, File) == 1);
 }
 
 int real_wmain(int argc, wchar_t** argv);
